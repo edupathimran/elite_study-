@@ -1,0 +1,549 @@
+{% extends "layout.html" %}
+{% block title %}{{ selected_chapter }} — EDUPATH{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('subject_view', subject_key=subject_key) }}"
+    class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 hover:bg-white border border-slate-900/10 text-xs font-extrabold text-slate-900 shadow-xs transition">
+    <span>←</span>
+    <span>Back</span>
+  </a>
+
+  <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
+    <h1 class="text-lg sm:text-2xl font-extrabold text-slate-900">{{ subportal.title }}</h1>
+    <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-600/10 text-emerald-800 border border-emerald-600/20">
+      {{ selected_chapter }}
+    </span>
+  </div>
+</div>
+
+<!-- 1. TOP PLAYER SECTION -->
+<section id="topLecturePlayerSection" class="mb-5">
+  <div id="protectedLectureBox" class="day-surface rounded-3xl overflow-hidden" oncontextmenu="return false;">
+    {% if active_lecture %}
+      <div class="relative bg-slate-950 aspect-video w-full select-none">
+        <video id="mainLectureVideo"
+          controls
+          controlsList="nodownload noplaybackrate"
+          disablePictureInPicture
+          preload="auto"
+          playsinline
+          webkit-playsinline
+          onloadedmetadata="updateExactDuration()"
+          onplay="markRealViewOnce({{ active_lecture.id }})"
+          ontimeupdate="updateProgressBar()"
+          class="w-full h-full object-contain bg-slate-950">
+          <source src="{{ url_for('serve_video', filename=active_lecture.video_filename) }}">
+          {% if active_lecture.caption_filename %}
+            <track label="Captions" kind="subtitles" srclang="hi" src="{{ url_for('serve_caption', filename=active_lecture.caption_filename) }}" default>
+          {% endif %}
+        </video>
+
+        <div class="pointer-events-none absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-white/10 text-[10px] font-bold text-white/85">
+          EDUPATH • {{ current_user.name }}
+        </div>
+      </div>
+
+      <div class="w-full h-1.5 bg-slate-900/10">
+        <div id="videoProgressFill" class="h-full bg-emerald-600 transition-all duration-100" style="width: 0%;"></div>
+      </div>
+
+      <div class="p-4 sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-emerald-700 mb-1.5">
+          <span>
+            {{ selected_chapter }} • Duration:
+            <span id="autoDurationText" class="text-slate-900">Detecting...</span>
+            <span class="text-slate-400 mx-1">|</span>
+            <span id="progressPercentText" class="text-emerald-700">0%</span> watched
+          </span>
+          <span class="text-slate-600 font-extrabold">
+            <span id="realViewsCount">{{ active_lecture.views_count }}</span> views
+          </span>
+        </div>
+
+        <h2 id="activeLectureTitle" class="text-lg sm:text-2xl font-extrabold text-slate-900">{{ active_lecture.title }}</h2>
+        {% if active_lecture.description %}
+          <p class="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed whitespace-pre-line">{{ active_lecture.description }}</p>
+        {% endif %}
+
+        <!-- Working Like, Dislike, Share + Controls -->
+        <div class="mt-4 pt-4 border-t border-slate-900/10 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="likeBtn" type="button" onclick="reactLecture({{ active_lecture.id }}, 'like')"
+              class="px-3.5 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5
+              {% if user_reaction == 'like' %}bg-emerald-600 text-white border-emerald-600{% else %}bg-[#f8f7f4] hover:bg-emerald-50 text-slate-900 border-slate-900/15{% endif %}">
+              <span>Like</span>
+              <span id="likesCountText">{{ active_lecture.likes_count }}</span>
+            </button>
+
+            <button id="unlikeBtn" type="button" onclick="reactLecture({{ active_lecture.id }}, 'unlike')"
+              class="px-3.5 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5
+              {% if user_reaction == 'unlike' %}bg-rose-600 text-white border-rose-600{% else %}bg-[#f8f7f4] hover:bg-rose-50 text-slate-900 border-slate-900/15{% endif %}">
+              <span>Dislike</span>
+              <span id="unlikesCountText">{{ active_lecture.unlikes_count }}</span>
+            </button>
+
+            <button type="button" onclick="shareLectureLink()"
+              class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-extrabold transition cursor-pointer">
+              Share
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="seekBy(-10)"
+              class="px-3 py-2 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.1] text-xs font-bold text-slate-800 cursor-pointer">
+              -10s
+            </button>
+            <button type="button" onclick="seekBy(10)"
+              class="px-3 py-2 rounded-xl bg-slate-900/[0.05] hover:bg-slate-900/[0.1] text-xs font-bold text-slate-800 cursor-pointer">
+              +10s
+            </button>
+            <select id="speedSelect" onchange="setPlaybackSpeed(this.value)"
+              class="px-2.5 py-1.5 rounded-xl bg-[#f7f5f0] border border-slate-900/15 text-xs font-bold text-slate-900">
+              <option value="0.75">0.75x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="1.75">1.75x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="p-8 sm:p-10 text-center">
+        <p class="text-base font-bold text-slate-900">Is chapter mein abhi koi lecture upload nahi hua hai.</p>
+        <p class="text-xs text-slate-500 mt-1">Naya lecture upload hote hi yahan top player mein show hoga.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- 2. ~1 INCH (56px) HORIZONTAL LECTURE STRIPS (MULTIPLE LECTURES LINE BY LINE) -->
+<section class="day-surface rounded-3xl p-3.5 sm:p-5 mb-5">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Chapter Lectures</h3>
+    <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-600/10 text-emerald-800">
+      {{ lectures|length }}
+    </span>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    {% for lec in lectures %}
+      {% set is_current = active_lecture and lec.id == active_lecture.id %}
+      <a href="{{ url_for('chapter_view', subject_key=subject_key, subportal_slug=subportal.slug, chapter=selected_chapter, lecture_id=lec.id) }}#topLecturePlayerSection"
+         class="w-full min-h-[56px] px-3.5 py-2 rounded-2xl flex items-center justify-between gap-3 border transition
+         {% if is_current %}
+           bg-emerald-50 border-emerald-600 text-slate-900 shadow-xs
+         {% else %}
+           bg-[#f8f7f4] hover:bg-white border-slate-900/10 text-slate-800
+         {% endif %}">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-slate-900 text-emerald-400 shrink-0">
+            Lecture {{ loop.index }}
+          </span>
+          <div class="min-w-0">
+            <div class="text-xs sm:text-sm font-extrabold truncate">{{ lec.title }}</div>
+            <div class="text-[10px] text-slate-500 font-semibold">{{ lec.views_count }} views • {{ lec.likes_count }} likes</div>
+          </div>
+        </div>
+        <span class="text-xs font-extrabold px-3 py-1 rounded-xl shrink-0
+          {% if is_current %}bg-emerald-600 text-white{% else %}bg-slate-900/[0.07] text-slate-800{% endif %}">
+          {% if is_current %}Playing{% else %}Open{% endif %}
+        </span>
+      </a>
+    {% else %}
+      <div class="py-4 text-center text-xs text-slate-500">Is chapter mein abhi koi lecture nahi hai.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Chapter PDFs (Web Viewer + Separate Download Option) -->
+{% if pdfs %}
+<section id="chapterPdfsSection" class="day-surface rounded-3xl p-4 sm:p-5 mb-5">
+  <div class="flex items-center justify-between gap-2 mb-3">
+    <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Chapter PDFs</h3>
+    <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600/10 text-emerald-800">
+      {{ pdfs|length }}
+    </span>
+  </div>
+
+  <div class="flex flex-col gap-2.5">
+    {% for p in pdfs %}
+      {% set view_url = url_for('serve_pdf', filename=p.pdf_filename) %}
+      {% set dl_url = url_for('download_pdf', filename=p.pdf_filename) %}
+      <div class="w-full min-h-[52px] px-3.5 py-2.5 rounded-2xl bg-[#f8f7f4] border border-slate-900/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div class="min-w-0">
+          <div class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{{ p.title }}</div>
+          <div class="text-[10px] text-slate-500 font-semibold">{{ selected_chapter }}</div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button"
+            onclick='openPdfInWeb({{ p.title | tojson }}, {{ view_url | tojson }}, {{ dl_url | tojson }})'
+            class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-extrabold transition cursor-pointer">
+            Open in Web
+          </button>
+
+          <a href="{{ dl_url }}" download
+            class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition inline-flex items-center gap-1">
+            <span>↓</span>
+            <span>Download</span>
+          </a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Inline Web PDF Viewer Box (Phone + PC) -->
+  <div id="webPdfViewerBox" class="hidden mt-4 rounded-2xl border border-slate-900/15 bg-white overflow-hidden shadow-sm">
+    <div class="px-3.5 py-2.5 bg-[#f4f2ed] border-b border-slate-900/10 flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <div id="webPdfTitle" class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">PDF Viewer</div>
+        <div class="text-[10px] text-slate-500 font-semibold">Web ke andar open hai</div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <a id="webPdfDownloadLink" href="#" download
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition">
+          Download
+        </a>
+        <button type="button" onclick="closeWebPdf()"
+          class="px-2.5 py-1.5 rounded-lg bg-slate-900/10 hover:bg-slate-900/20 text-slate-800 text-xs font-extrabold cursor-pointer">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <div class="w-full h-[68vh] sm:h-[78vh] bg-slate-100">
+      <iframe id="webPdfFrame" src="" title="PDF Preview"
+        class="w-full h-full border-0" allow="fullscreen"></iframe>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- 3. BOTTOM COMMENTS, CUSTOM LOGOS, REPLIES & ADMIN HIGHLIGHT -->
+{% if active_lecture %}
+<section id="commentsSection" class="day-surface rounded-3xl p-4 sm:p-6">
+  <div class="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-900/10">
+    <div>
+      <h3 class="text-base sm:text-lg font-extrabold text-slate-900">Comments & Replies</h3>
+      <p class="text-xs text-slate-500">Sab comment likh sakte hain aur aapas mein reply kar sakte hain.</p>
+    </div>
+    <span class="text-xs font-extrabold px-3 py-1 rounded-full bg-slate-900/[0.06] text-slate-800">
+      {{ comments|length }}
+    </span>
+  </div>
+
+  <form id="mainCommentForm" onsubmit="submitComment(event, null)" class="flex flex-col sm:flex-row gap-2 mb-5">
+    <input id="mainCommentInput" type="text" required placeholder="Apna comment likhein..."
+      class="flex-1 px-4 py-2.5 rounded-2xl bg-[#f8f7f4] border border-slate-900/15 focus:border-emerald-600 focus:bg-white focus:outline-none text-sm text-slate-900">
+    <button type="submit"
+      class="px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold transition cursor-pointer shrink-0">
+      Post
+    </button>
+  </form>
+
+  <div id="commentsList" class="space-y-3">
+    {% for c in comments %}
+      <div class="p-3.5 sm:p-4 rounded-2xl border transition
+        {% if c.is_admin %}
+          bg-emerald-50/90 border-emerald-600/50 ring-1 ring-emerald-600/20
+        {% elif c.is_pinned %}
+          bg-amber-50/70 border-amber-500/40
+        {% else %}
+          bg-[#faf8f4] border-slate-900/10
+        {% endif %}">
+        <div class="flex items-start gap-2.5">
+          {% if c.author_avatar %}
+            <img src="{{ url_for('serve_avatar', filename=c.author_avatar) }}" alt="{{ c.author_name }}"
+              class="w-8 h-8 rounded-xl object-cover shrink-0 border border-slate-900/10 mt-0.5">
+          {% else %}
+            <div class="w-8 h-8 rounded-xl {% if c.is_admin %}bg-emerald-600 text-white{% else %}bg-slate-900 text-emerald-400{% endif %} font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+              {{ c.author_name[0]|upper }}
+            </div>
+          {% endif %}
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-1.5">
+              {% if c.is_admin %}
+                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  Admin Highlight
+                </span>
+              {% endif %}
+              {% if c.is_pinned %}
+                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                  Pinned
+                </span>
+              {% endif %}
+              <span class="text-xs sm:text-sm font-extrabold text-slate-900">{{ c.author_name }}</span>
+              <span class="text-[11px] text-slate-400">{{ c.created_at }}</span>
+            </div>
+
+            <p class="text-xs sm:text-sm {% if c.is_admin %}text-slate-900 font-semibold{% else %}text-slate-700{% endif %} mt-1.5 leading-relaxed whitespace-pre-line">
+              {{ c.comment_text }}
+            </p>
+
+            <div class="mt-2.5 flex flex-wrap items-center gap-3 text-xs font-bold text-slate-600">
+              <button type="button" onclick="toggleReplyBox({{ c.id }})" class="text-emerald-700 hover:underline cursor-pointer">
+                Reply
+              </button>
+
+              {% if is_admin %}
+                <form method="POST" action="{{ url_for('pin_comment', comment_id=c.id) }}" class="inline">
+                  <button type="submit" class="text-slate-700 hover:text-emerald-700 cursor-pointer">
+                    {% if c.is_pinned %}Unpin{% else %}Pin{% endif %}
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('delete_comment', comment_id=c.id) }}" class="inline" onsubmit="return confirm('Comment delete karein?')">
+                  <button type="submit" class="text-rose-600 hover:underline cursor-pointer">
+                    Delete
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+
+            <form id="replyForm-{{ c.id }}" onsubmit="submitComment(event, {{ c.id }})" class="hidden mt-2.5 flex gap-2">
+              <input id="replyInput-{{ c.id }}" type="text" required placeholder="{{ c.author_name }} ko reply likhein..."
+                class="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-900/15 text-xs text-slate-900 focus:outline-none focus:border-emerald-600">
+              <button type="submit"
+                class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer">
+                Reply
+              </button>
+            </form>
+
+            {% if c.replies %}
+              <div class="mt-3 pl-3 sm:pl-4 border-l-2 border-emerald-600/25 space-y-2">
+                {% for r in c.replies %}
+                  <div class="p-2.5 rounded-xl border {% if r.is_admin %}bg-emerald-50 border-emerald-600/40{% else %}bg-white border-slate-900/5{% endif %}">
+                    <div class="flex items-start gap-2">
+                      {% if r.author_avatar %}
+                        <img src="{{ url_for('serve_avatar', filename=r.author_avatar) }}" alt="{{ r.author_name }}"
+                          class="w-6 h-6 rounded-lg object-cover shrink-0 border border-slate-900/10 mt-0.5">
+                      {% else %}
+                        <div class="w-6 h-6 rounded-lg {% if r.is_admin %}bg-emerald-600 text-white{% else %}bg-slate-900 text-emerald-400{% endif %} font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {{ r.author_name[0]|upper }}
+                        </div>
+                      {% endif %}
+
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="flex items-center gap-1.5 min-w-0">
+                            {% if r.is_admin %}
+                              <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white shrink-0">Admin</span>
+                            {% endif %}
+                            <span class="text-xs font-extrabold text-slate-900 truncate">{{ r.author_name }}</span>
+                          </div>
+                          <div class="flex items-center gap-2 shrink-0">
+                            <span class="text-[10px] text-slate-400">{{ r.created_at }}</span>
+                            {% if is_admin %}
+                              <form method="POST" action="{{ url_for('delete_comment', comment_id=r.id) }}" class="inline">
+                                <button type="submit" class="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer">Del</button>
+                              </form>
+                            {% endif %}
+                          </div>
+                        </div>
+                        <p class="text-xs {% if r.is_admin %}text-slate-900 font-semibold{% else %}text-slate-700{% endif %} mt-1 leading-relaxed">
+                          {{ r.comment_text }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div id="emptyCommentsMsg" class="py-6 text-center text-xs text-slate-500">
+        Abhi koi comment nahi hai. Pehla comment aap likhein!
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const ACTIVE_LECTURE_ID = {{ active_lecture.id if active_lecture else 'null' }};
+  let viewSentForCurrentSession = false;
+
+  function formatExactSeconds(totalSec) {
+    if (!isFinite(totalSec) || totalSec <= 0) return "—";
+    const sec = Math.floor(totalSec);
+    const hrs = Math.floor(sec / 3600);
+    const mins = Math.floor((sec % 3600) / 60);
+    const remSec = sec % 60;
+    const pad = n => String(n).padStart(2, '0');
+    return hrs > 0 ? `${hrs}:${pad(mins)}:${pad(remSec)}` : `${mins}:${pad(remSec)}`;
+  }
+
+  function updateExactDuration() {
+    const vid = document.getElementById('mainLectureVideo');
+    const el = document.getElementById('autoDurationText');
+    if (vid && el) el.textContent = formatExactSeconds(vid.duration);
+  }
+
+  function updateProgressBar() {
+    const vid = document.getElementById('mainLectureVideo');
+    const fill = document.getElementById('videoProgressFill');
+    const pctText = document.getElementById('progressPercentText');
+    if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
+    const pct = Math.min(100, Math.max(0, Math.round((vid.currentTime / vid.duration) * 100)));
+    if (fill) fill.style.width = `${pct}%`;
+    if (pctText) pctText.textContent = `${pct}%`;
+  }
+
+  async function markRealViewOnce(lectureId) {
+    if (!lectureId || viewSentForCurrentSession) return;
+    viewSentForCurrentSession = true;
+    try {
+      const res = await fetch(`/api/lecture/${lectureId}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const el = document.getElementById('realViewsCount');
+        if (el && typeof data.views !== 'undefined') el.textContent = data.views;
+      }
+    } catch (_) {}
+  }
+
+  async function reactLecture(lectureId, action) {
+    try {
+      const res = await fetch(`/api/lecture/${lectureId}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const likesEl = document.getElementById('likesCountText');
+      const unlikesEl = document.getElementById('unlikesCountText');
+      const likeBtn = document.getElementById('likeBtn');
+      const unlikeBtn = document.getElementById('unlikeBtn');
+
+      if (likesEl) likesEl.textContent = data.likes;
+      if (unlikesEl) unlikesEl.textContent = data.unlikes;
+
+      if (likeBtn && unlikeBtn) {
+        likeBtn.className = "px-3.5 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 " +
+          (data.reaction === 'like'
+            ? "bg-emerald-600 text-white border-emerald-600"
+            : "bg-[#f8f7f4] hover:bg-emerald-50 text-slate-900 border-slate-900/15");
+
+        unlikeBtn.className = "px-3.5 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 " +
+          (data.reaction === 'unlike'
+            ? "bg-rose-600 text-white border-rose-600"
+            : "bg-[#f8f7f4] hover:bg-rose-50 text-slate-900 border-slate-900/15");
+      }
+    } catch (_) {}
+  }
+
+  async function shareLectureLink() {
+    const title = document.getElementById('activeLectureTitle')?.textContent?.trim() || 'EDUPATH Lecture';
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url: shareUrl });
+        return;
+      } catch (_) {}
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Lecture link copy ho gaya hai!');
+    } catch (_) {
+      prompt('Lecture link copy karein:', shareUrl);
+    }
+  }
+
+  function seekBy(deltaSec) {
+    const vid = document.getElementById('mainLectureVideo');
+    if (!vid || !isFinite(vid.duration)) return;
+    vid.currentTime = Math.max(0, Math.min(vid.duration, vid.currentTime + deltaSec));
+    updateProgressBar();
+  }
+
+  function setPlaybackSpeed(rate) {
+    const vid = document.getElementById('mainLectureVideo');
+    if (vid) vid.playbackRate = parseFloat(rate);
+  }
+
+  function openPdfInWeb(title, viewUrl, downloadUrl) {
+    const box = document.getElementById('webPdfViewerBox');
+    const frame = document.getElementById('webPdfFrame');
+    const titleEl = document.getElementById('webPdfTitle');
+    const dlLink = document.getElementById('webPdfDownloadLink');
+
+    if (titleEl) titleEl.textContent = title || 'Chapter PDF';
+    if (dlLink && downloadUrl) dlLink.href = downloadUrl;
+    if (frame && viewUrl) frame.src = viewUrl;
+
+    if (box) {
+      box.classList.remove('hidden');
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function closeWebPdf() {
+    const box = document.getElementById('webPdfViewerBox');
+    const frame = document.getElementById('webPdfFrame');
+    if (frame) frame.src = '';
+    if (box) box.classList.add('hidden');
+  }
+
+  function toggleReplyBox(commentId) {
+    const form = document.getElementById(`replyForm-${commentId}`);
+    if (form) {
+      form.classList.toggle('hidden');
+      const inp = document.getElementById(`replyInput-${commentId}`);
+      if (!form.classList.contains('hidden') && inp) inp.focus();
+    }
+  }
+
+  async function submitComment(e, parentId) {
+    e.preventDefault();
+    if (!ACTIVE_LECTURE_ID) return;
+
+    const inputEl = parentId
+      ? document.getElementById(`replyInput-${parentId}`)
+      : document.getElementById('mainCommentInput');
+
+    if (!inputEl) return;
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    try {
+      const res = await fetch(`/api/lecture/${ACTIVE_LECTURE_ID}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_text: text, parent_id: parentId })
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Comment submit nahi ho saka.');
+      }
+    } catch (_) {
+      alert('Network error aaya.');
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    const vid = document.getElementById('mainLectureVideo');
+    if (document.hidden && vid && !vid.paused) {
+      vid.pause();
+    }
+  });
+</script>
+{% endblock %}
+```[cite: 41]
+
+---
+
+Kya ab main agle reply mein **sirf `app_7.py`** ka code bhejoon?

@@ -1,0 +1,253 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard — ELITE STUDY{% endblock %}
+
+{% block content %}
+<section class="day-surface rounded-3xl p-4 sm:p-7 mb-5 sm:mb-7 relative">
+  <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:gap-5">
+    <div class="min-w-0 flex-1">
+      <!-- Top Row: Badge + Count + 3-Dot (⋮) Admin Menu -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-600/10 text-emerald-800 border border-emerald-600/20">
+            ELITE STUDY • Class 10
+          </span>
+          <span id="visibleCountBadge" class="text-xs font-extrabold text-emerald-800">
+            {{ syllabus_data|length }} Portals
+          </span>
+        </div>
+
+        <!-- 3-Dot Vertical Admin Trigger (Dashboard Only) -->
+        <div class="relative shrink-0">
+          <button id="dashAdminDotBtn" type="button" onclick="toggleDashAdminMenu(event)"
+            aria-label="Dashboard options"
+            class="w-9 h-9 rounded-xl bg-slate-900/[0.04] hover:bg-slate-900/[0.09] border border-slate-900/10 flex items-center justify-center text-slate-700 transition cursor-pointer">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="5" r="2"/>
+              <circle cx="12" cy="12" r="2"/>
+              <circle cx="12" cy="19" r="2"/>
+            </svg>
+          </button>
+
+          <div id="dashAdminMenu"
+            class="hidden absolute right-0 mt-2 w-64 sm:w-72 rounded-2xl bg-white border border-slate-900/15 shadow-2xl p-3.5 z-40">
+            {% if is_admin %}
+              <div class="flex items-center justify-between mb-2.5">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">Admin Active</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              </div>
+              <a href="{{ url_for('admin_panel') }}"
+                class="w-full block text-center py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-extrabold transition mb-2">
+                Open Admin Panel →
+              </a>
+              <a href="{{ url_for('admin_logout') }}"
+                class="w-full block text-center py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition">
+                Exit Admin
+              </a>
+            {% else %}
+              <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">Admin Access</div>
+              <form method="POST" action="{{ url_for('admin_login') }}" class="space-y-2">
+                <input type="text" name="admin_id" required placeholder="Admin ID"
+                  class="w-full px-3 py-2 rounded-xl bg-[#f8f7f4] border border-slate-900/15 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white">
+                <input type="password" name="admin_pass" required placeholder="Password"
+                  class="w-full px-3 py-2 rounded-xl bg-[#f8f7f4] border border-slate-900/15 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white">
+                <button type="submit"
+                  class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-extrabold transition cursor-pointer">
+                  Login to Admin
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Compact Search Bar -->
+      <form method="GET" action="{{ url_for('dashboard') }}" class="mt-3 flex items-center gap-1.5 max-w-xl">
+        <input id="portalSearchInput" type="text" name="q" value="{{ search_query or '' }}"
+          oninput="filterPortalsLive()"
+          placeholder="Search subject, Footprints, First Flight, Course A/B, SST..."
+          class="w-full h-10 sm:h-11 px-3.5 rounded-xl bg-[#f8f7f4] border border-slate-900/15 focus:border-emerald-600 focus:bg-white focus:outline-none text-xs sm:text-sm text-slate-900">
+        {% if search_query %}
+          <a href="{{ url_for('dashboard') }}"
+            class="h-10 sm:h-11 px-3 rounded-xl bg-slate-900/[0.06] hover:bg-slate-900/[0.12] flex items-center justify-center text-[11px] font-bold text-slate-700 shrink-0">
+            Clear
+          </a>
+        {% endif %}
+        <button type="submit"
+          class="h-10 sm:h-11 px-4 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white text-xs font-extrabold transition cursor-pointer shrink-0">
+          Find
+        </button>
+      </form>
+
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-3.5 tracking-tight">
+        Welcome back, <span class="text-emerald-700">{{ current_user.name }}</span>
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
+        English (Footprints & First Flight), Hindi (Course A & B) aur SST (History, Civics, Geography & Economics) ke separate portals kholein.
+      </p>
+    </div>
+
+    <!-- Stats Strip -->
+    <div class="grid grid-cols-3 gap-2 sm:gap-3.5 shrink-0 w-full lg:w-auto">
+      <div class="px-3 py-2.5 sm:px-4 sm:py-3.5 rounded-2xl bg-[#f7f5f0] border border-slate-900/10 text-center">
+        <div class="text-base sm:text-2xl font-extrabold text-slate-900">{{ total_lectures }}</div>
+        <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">Lectures</div>
+      </div>
+      <div class="px-3 py-2.5 sm:px-4 sm:py-3.5 rounded-2xl bg-[#f7f5f0] border border-slate-900/10 text-center">
+        <div class="text-base sm:text-2xl font-extrabold text-emerald-700">{{ total_pdfs }}</div>
+        <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">PDFs</div>
+      </div>
+      <div class="px-3 py-2.5 sm:px-4 sm:py-3.5 rounded-2xl bg-[#f7f5f0] border border-slate-900/10 text-center">
+        <div class="text-base sm:text-2xl font-extrabold text-slate-900">{{ total_students }}</div>
+        <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5">Students</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if search_query %}
+<section class="day-surface rounded-3xl p-4 sm:p-6 mb-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <h2 class="text-base sm:text-lg font-extrabold text-slate-900">Results for "{{ search_query }}"</h2>
+    <a href="{{ url_for('dashboard') }}" class="text-xs font-bold text-emerald-700 hover:underline">Reset</a>
+  </div>
+
+  {% if search_lectures %}
+    <div class="space-y-2">
+      <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Lectures ({{ search_lectures|length }})</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {% for lec in search_lectures %}
+          <a href="{{ url_for('chapter_view', subject_key=lec.subject_key, subportal_slug=lec.subportal_slug, chapter=lec.chapter_name, lecture_id=lec.id) }}"
+             class="day-card rounded-2xl p-3.5 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{{ lec.title }}</div>
+              <div class="text-[11px] text-slate-500 truncate">{{ lec.chapter_name }}</div>
+            </div>
+            <span class="text-xs font-extrabold text-emerald-700 shrink-0">Play →</span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if search_pdfs %}
+    <div class="space-y-2">
+      <div class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">PDFs ({{ search_pdfs|length }})</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {% for p in search_pdfs %}
+          <a href="{{ url_for('serve_pdf', filename=p.pdf_filename) }}" target="_blank"
+             class="day-card rounded-2xl p-3.5 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{{ p.title }}</div>
+              <div class="text-[11px] text-slate-500 truncate">{{ p.chapter_name }}</div>
+            </div>
+            <span class="text-xs font-extrabold text-emerald-700 shrink-0">PDF →</span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if not search_lectures and not search_pdfs %}
+    <p class="text-xs text-slate-500">Is query ke liye koi lecture ya PDF nahi mila.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="mb-8">
+  <div id="portalsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
+    {% for key, sub in syllabus_data.items() %}
+      {% set sub_titles = [] %}
+      {% for sp in sub.subportals %}
+        {% set _ = sub_titles.append(sp.title) %}
+      {% endfor %}
+      <a href="{{ url_for('subject_view', subject_key=key) }}"
+         data-search="{{ (sub.name ~ ' ' ~ sub.tag ~ ' ' ~ (sub_titles | join(' '))) | lower }}"
+         class="portal-card day-card rounded-3xl p-4 sm:p-6 flex flex-col justify-between group">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600/10 text-emerald-800 truncate">
+              {{ sub.tag }}
+            </span>
+            <span class="w-8 h-8 rounded-xl bg-slate-900/[0.05] group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center text-slate-800 transition font-bold text-sm shrink-0">
+              →
+            </span>
+          </div>
+
+          <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 group-hover:text-emerald-700 transition">
+            {{ sub.name }}
+          </h2>
+
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            {% if sub.courses %}
+              {% for c in sub.courses %}
+                <span class="text-[11px] px-2.5 py-1 rounded-lg bg-[#f6f4ef] text-slate-700 border border-slate-900/5 font-semibold">
+                  {{ c.title }}
+                </span>
+              {% endfor %}
+            {% else %}
+              {% for sp in sub.subportals %}
+                <span class="text-[11px] px-2.5 py-1 rounded-lg bg-[#f6f4ef] text-slate-700 border border-slate-900/5 font-semibold">
+                  {{ sp.title }}
+                </span>
+              {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-900/10 flex items-center justify-between text-xs text-slate-500">
+          <span class="font-semibold">
+            {% if sub.courses %}{{ sub.courses|length }} Courses (4 Portals){% else %}{{ sub.subportals|length }} Portals{% endif %}
+          </span>
+          <span class="text-emerald-700 font-extrabold">Open →</span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+  <div id="emptySearchState" class="hidden day-surface rounded-3xl p-8 text-center mt-4">
+    <p class="text-sm font-bold text-slate-900">Is naam se koi portal nahi mila.</p>
+    <p class="text-xs text-slate-500 mt-1">Kisi aur subject ya book keyword se try karein.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleDashAdminMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('dashAdminMenu');
+    if (menu) menu.classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', function (e) {
+    const btn = document.getElementById('dashAdminDotBtn');
+    const menu = document.getElementById('dashAdminMenu');
+    if (menu && !menu.classList.contains('hidden')) {
+      if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+        menu.classList.add('hidden');
+      }
+    }
+  });
+
+  function filterPortalsLive() {
+    const input = document.getElementById('portalSearchInput');
+    const cards = document.querySelectorAll('.portal-card');
+    const emptyEl = document.getElementById('emptySearchState');
+    const badge = document.getElementById('visibleCountBadge');
+    if (!input || !cards.length) return;
+
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+
+    cards.forEach(card => {
+      const hay = card.getAttribute('data-search') || '';
+      const match = !q || hay.includes(q);
+      card.classList.toggle('hidden', !match);
+      if (match) shown++;
+    });
+
+    if (badge) badge.textContent = `${shown} Portal${shown === 1 ? '' : 's'}`;
+    if (emptyEl) emptyEl.classList.toggle('hidden', shown > 0);
+  }
+</script>
+{% endblock %}

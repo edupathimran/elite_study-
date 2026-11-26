@@ -1,0 +1,132 @@
+{% extends "layout.html" %}
+{% block title %}{{ subject.name }} — ELITE STUDY{% endblock %}
+
+{% block content %}
+<div class="mb-4 sm:mb-5">
+  {% if selected_course %}
+    <a href="{{ url_for('subject_view', subject_key=subject_key) }}"
+      class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 hover:bg-white border border-slate-900/10 text-xs font-extrabold text-slate-900 shadow-xs transition">
+      <span>←</span>
+      <span>Back to {{ subject.name }} Courses</span>
+    </a>
+  {% else %}
+    <a href="{{ url_for('dashboard') }}"
+      class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 hover:bg-white border border-slate-900/10 text-xs font-extrabold text-slate-900 shadow-xs transition">
+      <span>←</span>
+      <span>Back</span>
+    </a>
+  {% endif %}
+
+  <div class="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+        {{ subject.name }}{% if selected_course %} — {{ selected_course.title }}{% endif %}
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-600 mt-0.5">
+        {% if selected_course %}{{ selected_course.desc }}{% else %}{{ subject.tag }}{% endif %}
+      </p>
+    </div>
+  </div>
+</div>
+
+{% if subject.courses and not selected_course %}
+  <!-- Level 1: Hindi Course A & Course B Portals -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+    {% for course in subject.courses %}
+      <a href="{{ url_for('subject_view', subject_key=subject_key, course=course.slug) }}"
+         class="day-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between group">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-600/10 text-emerald-800">
+              Hindi Course Portal
+            </span>
+            <span class="w-9 h-9 rounded-xl bg-slate-900/[0.05] group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center text-slate-800 transition font-bold text-sm">
+              →
+            </span>
+          </div>
+
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 group-hover:text-emerald-700 transition">
+            {{ course.title }}
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
+            {{ course.desc }}
+          </p>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            {% for sp in course.subportals %}
+              <span class="text-xs px-3 py-1.5 rounded-xl bg-[#f6f4ef] text-slate-800 border border-slate-900/10 font-bold">
+                {{ sp.title }} ({{ sp.chapters|length }} Ch)
+              </span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="mt-5 pt-3.5 border-t border-slate-900/10 flex items-center justify-between text-xs text-slate-500">
+          <span class="font-semibold">{{ course.subportals|length }} Book Portals</span>
+          <span class="text-emerald-700 font-extrabold">Open {{ course.title }} →</span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+{% else %}
+  <!-- Level 2: Syllabus-Wise Separate Portals (Single Active Portal View to Avoid Long Scroll) -->
+  {% set active_portals = selected_course.subportals if selected_course else subject.subportals %}
+  {% set current_sp = selected_portal if selected_portal else active_portals[0] %}
+
+  <!-- Portal Selector Pills (Phone + PC) -->
+  <div class="mb-4 flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+    {% for sp in active_portals %}
+      {% set is_active_tab = (sp.slug == current_sp.slug) %}
+      <a href="{{ url_for('subject_view', subject_key=subject_key, course=selected_course.slug if selected_course else None, portal=sp.slug) }}"
+         class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold whitespace-nowrap border transition shrink-0
+         {% if is_active_tab %}
+           bg-slate-900 text-white border-slate-900 shadow-xs
+         {% else %}
+           bg-white/90 hover:bg-white text-slate-800 border-slate-900/10
+         {% endif %}">
+        {{ sp.title }}
+        <span class="ml-1.5 text-[11px] px-2 py-0.5 rounded-full {% if is_active_tab %}bg-emerald-500 text-slate-950{% else %}bg-slate-900/[0.06] text-slate-600{% endif %}">
+          {{ sp.chapters|length }}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+
+  <!-- Selected Portal Chapters Only -->
+  <section class="day-surface rounded-3xl p-4 sm:p-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 mb-4 border-b border-slate-900/10">
+      <div>
+        <span class="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-600/10 text-emerald-800 mb-1">
+          Active Syllabus Portal
+        </span>
+        <h2 class="text-lg sm:text-xl font-extrabold text-slate-900">{{ current_sp.title }}</h2>
+        <p class="text-xs sm:text-sm text-slate-600 mt-0.5">{{ current_sp.desc }}</p>
+      </div>
+      <span class="text-xs px-3 py-1 rounded-full bg-slate-900/[0.05] text-slate-700 font-bold self-start sm:self-auto">
+        {{ current_sp.chapters|length }} Chapters
+      </span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+      {% for chap in current_sp.chapters %}
+        <a href="{{ url_for('chapter_view', subject_key=subject_key, subportal_slug=current_sp.slug, chapter=chap) }}"
+           class="day-card rounded-2xl px-4 py-3 flex items-center justify-between gap-3 group">
+          <div class="min-w-0">
+            <div class="text-[11px] text-slate-400 font-bold">Chapter {{ loop.index }}</div>
+            <div class="text-sm font-extrabold text-slate-900 group-hover:text-emerald-700 truncate mt-0.5">{{ chap }}</div>
+            <div class="flex items-center gap-2.5 mt-1 text-[11px] text-slate-600 font-semibold">
+              <span>{{ lecture_counts.get((current_sp.slug, chap), 0) }} Lectures</span>
+              <span>•</span>
+              <span>{{ pdf_counts.get((current_sp.slug, chap), 0) }} PDFs</span>
+            </div>
+          </div>
+          <span class="w-8 h-8 rounded-xl bg-slate-900/[0.05] group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center shrink-0 font-bold text-slate-700 transition">
+            ›
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}
